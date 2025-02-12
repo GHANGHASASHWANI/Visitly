@@ -12,6 +12,24 @@ router
   .get(userController.renderSignupForm)
   .post(wrapAsync(userController.signup));
 
+// router
+//   .route("/login")
+//   .get(userController.renderLoginForm)
+//   .post(
+//     saveRedirectUrl,
+//     passport.authenticate("local", {
+//       failureRedirect: "/login",
+//       failureFlash: true,
+//     }),
+//     userController.login
+//   );
+
+// router.get("/logout", userController.logout);
+
+// module.exports = router;
+
+
+// with authentication of otp
 router
   .route("/login")
   .get(userController.renderLoginForm)
@@ -21,8 +39,17 @@ router
       failureRedirect: "/login",
       failureFlash: true,
     }),
-    userController.login
+    // userController.login --> original
+    wrapAsync(userController.login) // Call the updated login controller
   );
+
+  // verify otp 
+  router
+    .route("/verify-otp")
+    .get((req, res) => {
+      res.render("users/verify-otp.ejs"); // Render OTP verification page
+    })
+    .post(wrapAsync(userController.verifyOtp)); // Handle OTP verification
 
 router.get("/logout", userController.logout);
 

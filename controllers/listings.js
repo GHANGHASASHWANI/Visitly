@@ -1,7 +1,9 @@
 const Listing = require("../models/listing");
+const User = require("../models/user");
 const mbxGeocoding = require("@mapbox/mapbox-sdk/services/geocoding");
 const mapToken = process.env.MAP_TOKEN;
 const geocodingClient = mbxGeocoding({ accessToken: mapToken });
+const RentalRequest = require("../models/rentalRequest"); // ✅ Import the model
 
 module.exports.index = async (req, res) => {
   const allListings = await Listing.find({});
@@ -14,6 +16,7 @@ module.exports.renderNewForm = (req, res) => {
 
 module.exports.showListing = async (req, res) => {
   let { id } = req.params;
+
   const listing = await Listing.findById(id)
     .populate({
       path: "reviews",
@@ -27,7 +30,8 @@ module.exports.showListing = async (req, res) => {
     res.redirect("/listings");
   }
   console.log(listing);
-  res.render("listings/show.ejs", { listing });
+  const user = await User.findById(listing.owner);
+  res.render("listings/show.ejs", { listing, user });
 };
 
 module.exports.createListing = async (req, res, next) => {
@@ -182,5 +186,54 @@ module.exports.search = async (req, res) => {
   if (allListings.length == 0) {
     req.flash("error", "Listings is not here !!!");
     res.redirect("/listings");
+  }
+};
+
+/*  create rental request */
+
+module.exports.createRentalRequest = async (req, res) => {
+  try {
+    console.log("Rent request received:", req.body);
+
+    const { rentStartDate, rentEndDate, renterId } = req.body;
+    const listing_id = req.params.id;
+
+    // Validate input fields
+    if (!rentStartDate || !rentEndDate || !renterId) {
+      console.log("Missing required fields");
+      return res
+        .status(400)
+        .send(
+          "All fields (rental_start_date, rental_end_date, user_id) are required."
+        );
+    }
+
+    if (new Date(rentStartDate) >= new Date(rentEndDate)) {
+      console.log("Invalid date range");
+      return res.status(400).send("End date must be after start date.");
+    }
+
+    // Create a new rental request
+    const rentalRequest = new RentalRequest({
+      listing_id,
+      user_id: renterId,
+      rental_start_date: rentStartDate,
+      rental_end_date: rentEndDate,
+      status: "Pending",
+    });
+
+    await rentalRequest.save();
+    console.log("Rental request saved:", rentalRequest);
+
+    // Fetch updated rental requests for the user
+    const requests = await RentalRequest.find({ user_id: renterId })
+      .populate("listing_id", "title description price image")
+      .exec();
+
+    // Render the updated cart view
+    res.render("cart/showCart.ejs", { requests });
+  } catch (error) {
+    console.error("Error processing rental request:", error);
+    res.status(500).send("Error processing rental request.");
   }
 };
